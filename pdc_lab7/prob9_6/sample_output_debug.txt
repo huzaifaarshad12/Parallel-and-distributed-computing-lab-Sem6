@@ -1,0 +1,7 @@
+n=8, d=log2(n)=3
+  after phase -1: 799 742 53 25 283 679 292 816 
+  after phase 0: 742 799 53 25 283 679 816 292 
+  after phase 1: 25 53 742 799 816 679 292 283 
+  after phase 2: 25 53 283 292 679 742 799 816 
+HYPERCUBE BITONIC SORT  n=8  time=0.000304 s  SORTED -> PASS
+final: 25 53 283 292 679 742 799 816 
