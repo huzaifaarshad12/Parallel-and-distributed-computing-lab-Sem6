@@ -1,0 +1,1819 @@
+Lab 0
+		count_seq.c
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define N 100000000
+#define TARGET 42
+
+int main() {
+
+    int *arr = malloc(N * sizeof(int));
+    if (!arr) {
+        perror("malloc failed");
+        return 1;
+    }
+
+    srand(time(NULL));
+
+    for (long i = 0; i < N; i++) {
+        arr[i] = rand() % 100;
+    }
+
+    clock_t start = clock();
+
+    long count = 0;
+
+    for (long i = 0; i < N; i++) {
+        if (arr[i] == TARGET) {
+            count++;
+        }
+    }
+
+    clock_t end = clock();
+
+    double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
+
+    printf("Count = %ld\n", count);
+    printf("Time = %.2f seconds\n", elapsed);
+
+    free(arr);
+
+    return 0;
+}
+
+
+
+
+				count_pthread.c
+
+
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+#include <time.h>
+
+#define N 100000000
+#define TARGET 42
+#define NUM_THREADS 4
+
+int *arr;
+long global_count = 0;
+pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
+
+typedef struct {
+    long start;
+    long end;
+} ThreadArgs;
+
+void* count_chunk(void* arg) {
+    ThreadArgs *args = (ThreadArgs*) arg;
+    long local_count = 0;
+
+    for (long i = args->start; i < args->end; i++)
+        if (arr[i] == TARGET)
+            local_count++;
+
+    pthread_mutex_lock(&mutex);
+    global_count += local_count;
+    pthread_mutex_unlock(&mutex);
+
+    return NULL;
+}
+
+int main() {
+    arr = malloc(N * sizeof(int));
+    if (!arr) { perror("malloc"); return 1; }
+
+    srand(time(NULL));
+    for (long i = 0; i < N; i++)
+        arr[i] = rand() % 100;
+
+    pthread_t threads[NUM_THREADS];
+    ThreadArgs args[NUM_THREADS];
+    long chunk_size = N / NUM_THREADS;
+
+    clock_t start = clock();
+
+    for (int t = 0; t < NUM_THREADS; t++) {
+        args[t].start = t * chunk_size;
+        args[t].end = (t == NUM_THREADS - 1) ? N : (t + 1) * chunk_size;
+        pthread_create(&threads[t], NULL, count_chunk, &args[t]);
+    }
+
+    for (int t = 0; t < NUM_THREADS; t++)
+        pthread_join(threads[t], NULL);
+
+    clock_t end = clock();
+    double elapsed = (double)(end - start) / CLOCKS_PER_SEC;
+
+    printf("Count = %ld\n", global_count);
+    printf("Time with %d threads = %.2f seconds\n", NUM_THREADS, elapsed);
+
+    free(arr);
+    pthread_mutex_destroy(&mutex);
+    return 0;
+}
+
+
+
+
+
+					count_seq.py
+
+
+
+
+import random
+import time
+
+N = 100_000_000
+TARGET = 42
+
+arr = [random.randint(0, 99) for _ in range(N)]
+
+start = time.time()
+count = sum(1 for x in arr if x == TARGET)
+end = time.time()
+
+print(f"Count = {count}")
+print(f"Time = {end - start:.2f} seconds")
+
+
+
+
+					count_threads.py
+
+
+
+
+import random
+import time
+import threading
+
+N = 100_000_000
+TARGET = 42
+NUM_THREADS = 4
+
+arr = [random.randint(0, 99) for _ in range(N)]
+global_count = 0
+lock = threading.Lock()
+
+def count_chunk(start, end):
+    global global_count
+    local_count = 0
+    for i in range(start, end):
+        if arr[i] == TARGET:
+            local_count += 1
+    with lock:
+        global_count += local_count
+
+threads = []
+chunk_size = N // NUM_THREADS
+
+start_time = time.time()
+
+for t in range(NUM_THREADS):
+    s = t * chunk_size
+    e = N if t == NUM_THREADS - 1 else (t + 1) * chunk_size
+    thread = threading.Thread(target=count_chunk, args=(s, e))
+    threads.append(thread)
+    thread.start()
+
+for t in threads:
+    t.join()
+
+end_time = time.time()
+
+print(f"Count = {global_count}")
+print(f"Time = {end_time - start_time:.2f} seconds")
+
+
+
+
+
+
+					count_mp.py
+
+
+
+
+import random
+import time
+import multiprocessing as mp
+
+N = 100_000_000
+TARGET = 42
+NUM_PROCESSES = 4
+
+arr = [random.randint(0, 99) for _ in range(N)]
+
+def count_chunk(start, end):
+    local_count = 0
+    for i in range(start, end):
+        if arr[i] == TARGET:
+            local_count += 1
+    return local_count
+
+if __name__ == "__main__":
+    chunk_size = N // NUM_PROCESSES
+    pool = mp.Pool(NUM_PROCESSES)
+    results = []
+
+    start_time = time.time()
+
+    for t in range(NUM_PROCESSES):
+        s = t * chunk_size
+        e = N if t == NUM_PROCESSES - 1 else (t + 1) * chunk_size
+        results.append(pool.apply_async(count_chunk, (s, e)))
+
+    pool.close()
+    pool.join()
+
+    total = sum(r.get() for r in results)
+
+    end_time = time.time()
+
+    print(f"Count = {total}")
+    print(f"Time = {end_time - start_time:.2f} seconds")
+
+
+
+
+README.md
+
+
+# Lab 0: Foundations of Parallel Computing
+
+## Threads, Processes, and Linux Tools
+
+### Student Information
+
+* **Name:** Huzaifa Arshad
+* **Roll No:** (2023-CS-86)
+
+---
+
+## Overview
+
+This lab explores the fundamentals of parallel computing by implementing sequential and parallel versions of a counting problem in C and Python. The goal is to measure execution time, analyze performance, and understand limitations of parallelism.
+
+---
+
+## System Configuration
+
+* **Environment:** Ubuntu (Virtual Machine)
+* **CPU:** Intel Core i5-1235U
+* **Allocated Cores:** 1
+* **Tools Used:** GCC, Python3, Linux commands (`lscpu`, `top`, `htop`, `time`)
+
+---
+
+## Implementations
+
+### 1. C Sequential
+
+Single-threaded implementation used as a performance baseline.
+
+### 2. C Pthreads
+
+Parallel implementation using POSIX threads (tested with 4 threads).
+
+### 3. Python Sequential
+
+Basic counting using list traversal.
+
+### 4. Python Threading
+
+Uses Python `threading` module with locks.
+
+### 5. Python Multiprocessing
+
+Uses `multiprocessing` module for parallel execution.
+
+---
+
+## Execution Time Comparison
+
+| Implementation         | Threads/Processes | Time (seconds) |
+| ---------------------- | ----------------- | -------------- |
+| C Sequential           | 1                 | 0.11           |
+| C Pthreads             | 4                 | 0.08           |
+| C Pthreads             | 4                 | 0.09           |
+| C Pthreads             | 4                 | 0.07           |
+| C Pthreads             | 4                 | 0.09           |
+| C Pthreads             | 4                 | 0.09           |
+| Python Sequential      | 1                 | 63.689         |
+| Python Threads         | 4                 | 62.846         |
+| Python Multiprocessing | 4                 | 158.094        |
+| Python Multiprocessing | 4                 | 14.261         |
+
+---
+
+## Speedup Analysis
+
+Speedup is calculated as:
+
+Speedup = T(1) / T(N)
+
+Using:
+
+* Sequential C time = 0.11 seconds
+* Best pthread time = 0.07 seconds
+
+Speedup:
+
+* 4 Threads = 0.11 / 0.07 ≈ **1.57**
+
+### Observations:
+
+* Speedup is limited and not linear
+* Improvement is small due to single-core VM
+* Multiple runs show variation due to system scheduling
+
+---
+
+## Key Observations
+
+* C performs significantly faster than Python.
+* Pthreads show slight improvement over sequential execution.
+* Python threading does not improve performance due to the Global Interpreter Lock (GIL).
+* Python multiprocessing shows inconsistent performance due to overhead and data copying.
+* Execution time varies between runs due to system load and randomness.
+
+---
+
+## Challenges Faced
+
+* Python programs took very long due to large data size.
+* Multiprocessing had high overhead and inconsistent timing.
+* Running inside a virtual machine limited true parallelism.
+* Managing threads and synchronization required careful implementation.
+
+---
+
+## Concepts Learned
+
+* Difference between processes and threads
+* Concurrency vs parallelism
+* Race conditions and mutex synchronization
+* Python Global Interpreter Lock (GIL)
+* Amdahl’s Law and speedup limitations
+
+---
+
+## Conclusion
+
+This lab demonstrated that parallel programming can improve performance, but gains depend on hardware and implementation. C with pthreads showed the best performance, while Python threading failed to improve speed due to the GIL. Multiprocessing can achieve parallelism but introduces overhead. The experiment also showed that running on a single-core virtual machine limits the benefits of parallel execution.
+
+---
+
+## How to Run
+
+### C Programs
+
+```bash
+gcc -O2 -o count_seq count_seq.c
+./count_seq
+
+gcc -O2 -pthread -o count_pthread count_pthread.c
+./count_pthread
+```
+
+### Python Programs
+
+```bash
+python3 count_seq.py
+python3 count_threads.py
+python3 count_mp.py
+```
+
+---
+
+## Final Note
+
+Parallel computing performance depends not only on code but also on hardware. Proper understanding of threads, processes, and system limitations is essential for achieving efficient parallel execution.
+
+
+
+
+
+
+
+
+lab1
+
+			hello.cpp
+
+
+#include <iostream>
+#include <mpi.h>
+
+using namespace std;
+
+int main(int argc, char **argv)
+{
+    MPI_Init(&argc, &argv);
+
+    int myrank, mysize;
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &myrank);
+    MPI_Comm_size(MPI_COMM_WORLD, &mysize);
+
+    cout << "Hello World from Process " << myrank 
+         << " out of " << mysize << endl;
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+
+			hello_mpi.c
+
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char** argv) {
+    MPI_Init(&argc, &argv);
+
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    printf("Hello from process %d of %d\n", world_rank, world_size);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+			pingpong.c
+
+
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+
+#define PING_PONG_LIMIT 10000
+
+int main(int argc, char** argv) {
+
+    MPI_Init(&argc, &argv);
+
+    int world_rank;
+    MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+    int world_size;
+    MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+    if (world_size != 2) {
+        if (world_rank == 0)
+            printf("This program requires exactly 2 processes.\n");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    int ping_pong_count = 0;
+    int partner_rank = (world_rank == 0) ? 1 : 0;
+
+    double start_time = MPI_Wtime();
+
+    while (ping_pong_count < PING_PONG_LIMIT) {
+        if (world_rank == ping_pong_count % 2) {
+            ping_pong_count++;
+            MPI_Send(&ping_pong_count, 1, MPI_INT, partner_rank, 0, MPI_COMM_WORLD);
+        } else {
+            MPI_Recv(&ping_pong_count, 1, MPI_INT, partner_rank, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        }
+    }
+
+    double end_time = MPI_Wtime();
+
+    if (world_rank == 0) {
+        printf("Ping-pong completed in %f seconds\n", end_time - start_time);
+        printf("Average round-trip time: %f microseconds\n",
+               (end_time - start_time) * 1e6 / PING_PONG_LIMIT);
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+
+				count_mpi.c
+
+#include <mpi.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <time.h>
+
+#define N 100000000
+#define TARGET 42
+
+int main(int argc, char** argv) {
+
+    int rank, size;
+    long local_count = 0;
+    long global_count = 0;
+    double start, end;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    long elements_per_proc = N / size;
+    long remainder = N % size;
+    long local_n;
+
+    if (rank < remainder)
+        local_n = elements_per_proc + 1;
+    else
+        local_n = elements_per_proc;
+
+    int *local_arr = (int*) malloc(local_n * sizeof(int));
+    if (!local_arr) {
+        printf("Malloc failed\n");
+        MPI_Abort(MPI_COMM_WORLD, 1);
+    }
+
+    srand(time(NULL) + rank);
+
+    for (long i = 0; i < local_n; i++)
+        local_arr[i] = rand() % 100;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    start = MPI_Wtime();
+
+    for (long i = 0; i < local_n; i++)
+        if (local_arr[i] == TARGET)
+            local_count++;
+
+    MPI_Reduce(&local_count, &global_count, 1, MPI_LONG, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    end = MPI_Wtime();
+
+    if (rank == 0) {
+        printf("Total count = %ld\n", global_count);
+        printf("Time with %d processes = %f seconds\n", size, end - start);
+    }
+
+    free(local_arr);
+    MPI_Finalize();
+    return 0;
+}
+
+
+					readme file 
+# Lab 1: MPI – Parallel Counting
+
+## Overview
+This lab introduces **MPI (Message Passing Interface)** by implementing a parallel counting program on a **distributed-memory** model. Each process independently generates its own data, counts occurrences of a target value locally, and then combines results across all processes using `MPI_Reduce`.  
+The lab also compares MPI with shared-memory threading (Pthreads) and analyzes speedup/efficiency.
+
+## Files
+- `count_mpi.c` – Parallel counting program: each rank generates random data, counts target occurrences locally, and uses `MPI_Reduce` to compute the global total and timing.
+
+## Compilation and Execution
+
+### Compile
+```bash
+mpicc -O2 -o count_mpi count_mpi.c
+```
+
+### Run
+```bash
+mpirun -np 1 ./count_mpi
+mpirun -np 2 ./count_mpi
+mpirun -np 4 ./count_mpi
+```
+
+## Example Output
+
+### 1 Process
+```
+Total count = 1000350
+Time with 1 processes = 0.106247 seconds
+```
+
+### 2 Processes
+```
+Total count = 1000232
+Time with 2 processes = 0.037474 seconds
+```
+
+### 4 Processes
+```
+Total count = 1001282
+Time with 4 processes = 0.040799 seconds
+```
+
+### Performance (from lab results)
+
+**Speedup**
+- 2 processes: `2.83`
+- 4 processes: `2.60`
+
+**Efficiency**
+- 2 processes: `1.41`
+- 4 processes: `0.65`
+
+## Challenges Faced
+- **Non‑linear speedup / overhead effects:**  
+  Speedup was not perfectly linear as processes increased because MPI has overhead (process startup + reduce communication). Also, randomness and system load can affect timing results.  
+  **Resolution:** Use larger workloads, run multiple trials, and average timings for more stable performance measurements.
+
+- **Result variation between runs:**  
+  The total count differs slightly across runs because each process generates random arrays independently.  
+  **Resolution:** Use a fixed seed per process (e.g., `srand(rank)`) if repeatable results are required.
+
+- **Efficiency calculation interpretation:**  
+  Efficiency can drop as process count increases due to communication and synchronization costs.  
+  **Resolution:** Interpreted efficiency as a practical indicator of scaling limits rather than expecting perfect scaling.
+
+
+
+
+
+lab 2 
+
+			parallel_sum.c
+
+#include <stdio.h>
+#include <mpi.h>
+
+int main(int argc, char *argv[]) {
+
+    int mynode, totalnodes;
+    int sum, startval, endval, accum;
+    MPI_Status status;
+    double start_time, end_time;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_size(MPI_COMM_WORLD, &totalnodes);
+    MPI_Comm_rank(MPI_COMM_WORLD, &mynode);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    start_time = MPI_Wtime();
+
+    sum = 0;
+
+    startval = 1000 * mynode / totalnodes + 1;
+    endval   = 1000 * (mynode + 1) / totalnodes;
+
+    for (int i = startval; i <= endval; i++) {
+        sum += i;
+    }
+
+    if (mynode != 0) {
+        MPI_Send(&sum, 1, MPI_INT, 0, 1, MPI_COMM_WORLD);
+    } else {
+        for (int j = 1; j < totalnodes; j++) {
+            MPI_Recv(&accum, 1, MPI_INT, j, 1, MPI_COMM_WORLD, &status);
+            sum += accum;
+        }
+    }
+
+    end_time = MPI_Wtime();
+
+    if (mynode == 0) {
+        printf("Total sum = %d\n", sum);
+        printf("Execution time with %d processes: %f seconds\n",
+               totalnodes, end_time - start_time);
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+				custom_gather.c
+
+#include <stdio.h>
+#include <mpi.h>
+
+int main(int argc, char *argv[]) {
+
+    int rank, size;
+    MPI_Status status;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    int arr[10];
+
+    if (rank != 0) {
+
+        for (int i = 0; i < 10; i++)
+            arr[i] = rank * 100 + i;
+
+        MPI_Send(arr, 10, MPI_INT, 0, rank, MPI_COMM_WORLD);
+    }
+    else {
+
+        for (int i = 1; i < size; i++) {
+
+            MPI_Recv(arr, 10, MPI_INT, i, MPI_ANY_TAG,
+                     MPI_COMM_WORLD, &status);
+
+            printf("Process 0 received from %d: ",
+                   status.MPI_SOURCE);
+
+            for (int j = 0; j < 10; j++)
+                printf("%d ", arr[j]);
+
+            printf("\n");
+        }
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+			wildcard_gather.c
+
+
+#include <stdio.h>
+#include <mpi.h>
+
+int main(int argc, char *argv[]) {
+
+    int rank, size;
+    MPI_Status status;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    int arr[10];
+
+    if (rank != 0) {
+
+        // Worker processes
+        for (int i = 0; i < 10; i++) {
+            arr[i] = rank * 100 + i;
+        }
+
+        // Send to master
+        MPI_Send(arr, 10, MPI_INT, 0, rank, MPI_COMM_WORLD);
+    }
+    else {
+
+        // Master process
+        printf("Process 0 receiving data using MPI_ANY_SOURCE...\n\n");
+
+        for (int i = 1; i < size; i++) {
+
+            MPI_Recv(arr, 10, MPI_INT,
+                     MPI_ANY_SOURCE,
+                     MPI_ANY_TAG,
+                     MPI_COMM_WORLD,
+                     &status);
+
+            printf("Received from process %d: ",
+                   status.MPI_SOURCE);
+
+            for (int j = 0; j < 10; j++) {
+                printf("%d ", arr[j]);
+            }
+
+            printf("\n");
+        }
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+
+					readme file 
+
+# Lab 2: Point-to-Point Communication in MPI
+
+## Overview
+This lab focuses on understanding and implementing **MPI point‑to‑point communication** using `MPI_Send` and `MPI_Recv`. It also introduces performance measurement (timing + speedup), custom communication patterns, and wildcard message receiving using `MPI_ANY_SOURCE` / `MPI_ANY_TAG`.
+
+## Files
+- `parallel_sum.c` – Computes the sum of numbers from 1 to 1000 in parallel using point‑to‑point messaging and measures execution time for different process counts.
+
+## Compilation and Execution
+
+### Compile
+```bash
+mpicc -o parallel_sum parallel_sum.c
+```
+
+### Run
+```bash
+mpirun -np 1 ./parallel_sum
+mpirun -np 2 ./parallel_sum
+mpirun -np 4 ./parallel_sum
+```
+
+## Example Output
+
+### Timing / Speedup Table
+| Processes | Execution Time (seconds) | Speedup |
+| --------- | ------------------------ | ------- |
+| 1         | 0.000001                 | 1.000   |
+| 2         | 0.000065                 | 0.015   |
+| 4         | 0.000018                 | 0.055   |
+
+## Challenges Faced
+- **Very small execution times (timing noise):**  
+  Because the workload (1 to 1000 sum) is small, measured times can be dominated by MPI startup/communication overhead, making speedup appear low or inconsistent.  
+  **Resolution:** Run more iterations, average results, or increase the workload size to get more stable timing.
+
+
+
+						lab 3 
+
+			bcast_example.c
+
+#include <stdio.h>
+#include <mpi.h>
+
+int main(int argc, char** argv) {
+    int rank, size;
+    int data;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (rank == 0) {
+        data = 1000;
+        printf("Process %d broadcasting value %d\n", rank, data);
+    }
+
+    MPI_Bcast(&data, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    printf("Process %d received data = %d\n", rank, data);
+
+    MPI_Finalize();
+    return 0;
+}
+
+reduce_sum.c
+
+#include <stdio.h>
+#include <mpi.h>
+
+int main(int argc, char** argv) {
+
+    int rank, size;
+    int local_sum = 0, global_sum = 0;
+    int startval, endval;
+    double start_time, end_time;
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    startval = 1000 * rank / size + 1;
+    endval   = 1000 * (rank + 1) / size;
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    start_time = MPI_Wtime();
+
+    for (int i = startval; i <= endval; i++) {
+        local_sum += i;
+    }
+
+    MPI_Reduce(&local_sum, &global_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    end_time = MPI_Wtime();
+
+    if (rank == 0) {
+        printf("The sum from 1 to 1000 is: %d\n", global_sum);
+        printf("Time with %d processes: %f seconds\n", size, end_time - start_time);
+
+        int expected = 1000 * 1001 / 2;
+        printf("Expected sum: %d\n", expected);
+    }
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+
+scatter_gather.c
+
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
+
+#define N 1000
+
+int main(int argc, char** argv) {
+
+    int rank, size;
+    int *array = NULL;
+    int *local_array;
+    int local_n;
+    int local_sum = 0, total_sum = 0;
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    local_n = N / size;
+
+    local_array = (int*) malloc(local_n * sizeof(int));
+
+    if (rank == 0) {
+        array = (int*) malloc(N * sizeof(int));
+
+        for (int i = 0; i < N; i++)
+            array[i] = i + 1;
+    }
+
+    MPI_Scatter(array, local_n, MPI_INT, local_array, local_n, MPI_INT, 0, MPI_COMM_WORLD);
+
+    for (int i = 0; i < local_n; i++)
+        local_sum += local_array[i];
+
+    printf("Process %d: local sum = %d\n", rank, local_sum);
+
+    MPI_Reduce(&local_sum, &total_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    int *all_sums = NULL;
+
+    if (rank == 0)
+        all_sums = (int*) malloc(size * sizeof(int));
+
+    MPI_Gather(&local_sum, 1, MPI_INT, all_sums, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+
+        printf("Total sum via MPI_Reduce: %d\n", total_sum);
+
+        printf("Collected sums: ");
+        for (int i = 0; i < size; i++)
+            printf("%d ", all_sums[i]);
+
+        printf("\nExpected total sum = %d\n", N * (N + 1) / 2);
+
+        free(array);
+        free(all_sums);
+    }
+
+    free(local_array);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+scatterv_gatherv.c
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
+
+#define N 1000
+
+int main(int argc, char** argv) {
+
+    int rank, size;
+    int *array = NULL;
+    int *local_array;
+
+    int *sendcounts = NULL;
+    int *displs = NULL;
+
+    int local_n;
+    int local_sum = 0;
+    int total_sum = 0;
+
+    int *all_sums = NULL;
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (rank == 0) {
+
+        array = (int*) malloc(N * sizeof(int));
+        sendcounts = (int*) malloc(size * sizeof(int));
+        displs = (int*) malloc(size * sizeof(int));
+
+        for (int i = 0; i < N; i++)
+            array[i] = i + 1;
+
+        int sum = 0;
+
+        for (int i = 0; i < size; i++) {
+
+            sendcounts[i] = N / size;
+
+            if (i < N % size)
+                sendcounts[i]++;
+
+            displs[i] = sum;
+            sum += sendcounts[i];
+        }
+    }
+
+    MPI_Scatter(sendcounts, 1, MPI_INT, &local_n, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    local_array = (int*) malloc(local_n * sizeof(int));
+
+    MPI_Scatterv(array, sendcounts, displs, MPI_INT,
+                 local_array, local_n, MPI_INT,
+                 0, MPI_COMM_WORLD);
+
+    for (int i = 0; i < local_n; i++)
+        local_sum += local_array[i];
+
+    printf("Process %d: local sum = %d\n", rank, local_sum);
+
+    MPI_Reduce(&local_sum, &total_sum, 1, MPI_INT, MPI_SUM, 0, MPI_COMM_WORLD);
+
+    if (rank == 0)
+        all_sums = (int*) malloc(size * sizeof(int));
+
+    MPI_Gatherv(&local_sum, 1, MPI_INT,
+                all_sums, sendcounts, displs,
+                MPI_INT, 0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+
+        printf("Total sum = %d\n", total_sum);
+        printf("Expected sum = %d\n", N * (N + 1) / 2);
+
+        printf("Collected local sums:\n");
+
+        for (int i = 0; i < size; i++)
+            printf("%d ", all_sums[i]);
+
+        printf("\n");
+
+        free(array);
+        free(sendcounts);
+        free(displs);
+        free(all_sums);
+    }
+
+    free(local_array);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+matvec.c
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <mpi.h>
+
+#define M 8
+#define N 8
+
+int main(int argc, char** argv) {
+
+    int rank, size;
+
+    double *A = NULL;
+    double *local_A;
+
+    double *x = NULL;
+    double *local_y;
+    double *y = NULL;
+
+    int local_rows;
+
+    MPI_Init(&argc, &argv);
+
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (M % size != 0) {
+
+        if (rank == 0)
+            printf("Rows must be divisible by processes\n");
+
+        MPI_Finalize();
+        return 1;
+    }
+
+    local_rows = M / size;
+
+    local_A = (double*) malloc(local_rows * N * sizeof(double));
+    local_y = (double*) malloc(local_rows * sizeof(double));
+
+    if (rank == 0) {
+
+        A = (double*) malloc(M * N * sizeof(double));
+        x = (double*) malloc(N * sizeof(double));
+        y = (double*) malloc(M * sizeof(double));
+
+        for (int i = 0; i < M * N; i++)
+            A[i] = 1.0;
+
+        for (int i = 0; i < N; i++)
+            x[i] = 1.0;
+
+    } else {
+
+        x = (double*) malloc(N * sizeof(double));
+    }
+
+    MPI_Bcast(x, N, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+
+    MPI_Scatter(A, local_rows * N, MPI_DOUBLE,
+                local_A, local_rows * N, MPI_DOUBLE,
+                0, MPI_COMM_WORLD);
+
+    for (int i = 0; i < local_rows; i++) {
+
+        local_y[i] = 0.0;
+
+        for (int j = 0; j < N; j++)
+            local_y[i] += local_A[i * N + j] * x[j];
+    }
+
+    MPI_Gather(local_y, local_rows, MPI_DOUBLE,
+               y, local_rows, MPI_DOUBLE,
+               0, MPI_COMM_WORLD);
+
+    if (rank == 0) {
+
+        printf("Result vector y:\n");
+
+        for (int i = 0; i < M; i++)
+            printf("%f ", y[i]);
+
+        printf("\n");
+
+        free(A);
+        free(y);
+    }
+
+    free(local_A);
+    free(local_y);
+    free(x);
+
+    MPI_Finalize();
+
+    return 0;
+}
+
+					readme.md 
+
+
+
+# Lab 3: MPI Collective Communication
+
+## Overview
+This lab focuses on understanding and implementing **MPI (Message Passing Interface) collective communication** operations. The programs demonstrate how multiple processes communicate and collaborate in parallel computing using collectives such as **Broadcast, Reduce, Scatter, Gather, Scatterv, and Gatherv**, along with a **parallel matrix‑vector multiplication** example.
+
+The goal is to explore how data is distributed and combined across processes to improve computational efficiency and to observe MPI behavior such as timing differences and message ordering.
+
+## Files
+- `bcast_example.c` – Demonstrates `MPI_Bcast` to broadcast data from root to all processes.
+- `reduce_sum.c` – Computes the sum of numbers from 1 to 1000 using `MPI_Reduce`.
+- `scatter_gather.c` – Uses `MPI_Scatter` and `MPI_Gather` to distribute and collect data.
+- `scatterv_gatherv.c` – Implements `MPI_Scatterv` and `MPI_Gatherv` for uneven data distribution.
+- `matvec.c` – Performs parallel matrix‑vector multiplication.
+- `parallel_sum.c` – Measures execution time using different numbers of processes.
+- `custom_gather.c` – Implements manual gather using `MPI_Send` and `MPI_Recv`.
+- `wildcard_gather.c` – Demonstrates `MPI_ANY_SOURCE` usage for dynamic message receiving.
+
+## Compilation and Execution
+
+### Compile Programs
+```bash
+mpicc -O2 -o bcast_example bcast_example.c
+mpicc -O2 -o reduce_sum reduce_sum.c
+mpicc -O2 -o scatter_gather scatter_gather.c
+mpicc -O2 -o scatterv_gatherv scatterv_gatherv.c
+mpicc -O2 -o matvec matvec.c
+mpicc -O2 -o parallel_sum parallel_sum.c
+mpicc -O2 -o custom_gather custom_gather.c
+mpicc -O2 -o wildcard_gather wildcard_gather.c
+```
+
+### Run Programs
+```bash
+mpirun -np 4 ./bcast_example
+mpirun -np 4 ./reduce_sum
+mpirun -np 4 ./scatter_gather
+mpirun -np 4 ./scatterv_gatherv
+mpirun -np 4 ./matvec
+mpirun -np 1 ./parallel_sum
+mpirun -np 2 ./parallel_sum
+mpirun -np 4 ./parallel_sum
+mpirun -np 4 ./custom_gather
+mpirun -np 4 ./wildcard_gather
+```
+
+## Example Output
+
+### Parallel Sum (Reduce)
+```
+The sum from 1 to 1000 is: 500500
+Time with 1 processes: 0.000005 seconds
+
+The sum from 1 to 1000 is: 500500
+Time with 2 processes: 0.000062 seconds
+
+The sum from 1 to 1000 is: 500500
+Time with 4 processes: 0.000106 seconds
+```
+
+### Broadcast
+```
+Process 0 broadcasting value 1000
+Process 1 received data = 1000
+Process 2 received data = 1000
+Process 3 received data = 1000
+```
+
+### Scatter and Gather
+```
+Process 0: local sum = 31375
+Process 1: local sum = 93875
+Process 2: local sum = 156375
+Process 3: local sum = 218875
+
+Total sum via MPI_Reduce: 500500
+Collected sums: 31375 93875 156375 218875
+```
+
+### Scatterv and Gatherv
+```
+Process 0: local sum = 31375
+Process 1: local sum = 93875
+Process 2: local sum = 156375
+Process 3: local sum = 218875
+
+Total sum = 500500
+Expected sum = 500500
+```
+
+### Matrix Vector Multiplication
+```
+Result vector y:
+8.000000 8.000000 8.000000 8.000000
+8.000000 8.000000 8.000000 8.000000
+```
+
+### Custom Gather
+```
+Process 0 received from 1: 100 101 102 103 104 105 106 107 108 109
+Process 0 received from 2: 200 201 202 203 204 205 206 207 208 209
+Process 0 received from 3: 300 301 302 303 304 305 306 307 308 309
+```
+
+## Challenges Faced
+1. **Slot Limitation Error**  
+   **Problem:** Could not run with 8 processes due to limited CPU cores.  
+   **Solution:** Used fewer processes or learned about the `--oversubscribe` option.
+
+2. **Understanding MPI Communication**  
+   **Problem:** Initially confusing to understand Scatter, Gather, and Reduce.  
+   **Solution:** Practiced small examples and analyzed outputs step‑by‑step.
+
+3. **Message Ordering Issue**  
+   **Problem:** Output order changed in the wildcard gather program.  
+   **Solution:** Learned that `MPI_ANY_SOURCE` allows receiving messages in any order.
+
+4. **Syntax Errors in Terminal**  
+   **Problem:** Tried running MPI code directly in terminal.  
+   **Solution:** Understood that MPI functions must be inside C programs, not terminal commands.
+
+
+
+
+
+					lab 4 
+
+Broadcast.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char** argv) {
+    int rank, size;
+    int data = 100;
+    double start, end;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    start = MPI_Wtime();
+
+    // MPI_Bcast
+    MPI_Bcast(&data, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    end = MPI_Wtime();
+
+    if (rank == 0)
+        printf("MPI_Bcast Time: %f\n", end - start);
+
+    // Manual broadcast
+    MPI_Barrier(MPI_COMM_WORLD);
+    start = MPI_Wtime();
+
+    if (rank == 0) {
+        for (int i = 1; i < size; i++) {
+            MPI_Send(&data, 1, MPI_INT, i, 0, MPI_COMM_WORLD);
+        }
+    } else {
+        MPI_Recv(&data, 1, MPI_INT, 0, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    end = MPI_Wtime();
+
+    if (rank == 0)
+        printf("Manual Broadcast Time: %f\n", end - start);
+
+    MPI_Finalize();
+    return 0;
+}
+
+TreeReduce.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char** argv) {
+    int rank, size;
+    int value, step;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    value = rank + 1;
+
+    for (step = 1; step < size; step *= 2) {
+        if (rank % (2 * step) == 0) {
+            if (rank + step < size) {
+                int temp;
+                MPI_Recv(&temp, 1, MPI_INT, rank + step, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+                value += temp;
+            }
+        } else {
+            MPI_Send(&value, 1, MPI_INT, rank - step, 0, MPI_COMM_WORLD);
+            break;
+        }
+    }
+
+    if (rank == 0)
+        printf("Final Reduced Sum = %d\n", value);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+Scatter.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+#define N 1000
+
+int main(int argc, char** argv) {
+    int rank, size;
+    int data[N], recv;
+    double start, end;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    if (rank == 0) {
+        for (int i = 0; i < N; i++)
+            data[i] = i;
+    }
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    start = MPI_Wtime();
+
+    MPI_Scatter(data, 1, MPI_INT, &recv, 1, MPI_INT, 0, MPI_COMM_WORLD);
+
+    MPI_Barrier(MPI_COMM_WORLD);
+    end = MPI_Wtime();
+
+    if (rank == 0)
+        printf("MPI_Scatter Time: %f\n", end - start);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+my_Allgather.c
+
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char** argv) {
+    int rank, size;
+    int send, recv[10];
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    send = rank + 1;
+    recv[rank] = send;
+
+    int temp = send;
+
+    for (int i = 1; i < size; i++) {
+        int send_to = (rank + 1) % size;
+        int recv_from = (rank - 1 + size) % size;
+
+        MPI_Sendrecv(&temp, 1, MPI_INT, send_to, 0,
+                     &temp, 1, MPI_INT, recv_from, 0,
+                     MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+
+        recv[(rank - i + size) % size] = temp;
+    }
+
+    printf("Rank %d: ", rank);
+    for (int i = 0; i < size; i++)
+        printf("%d ", recv[i]);
+    printf("\n");
+
+    MPI_Finalize();
+    return 0;
+}
+
+LinearPrefixSum.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char** argv) {
+    int rank, size;
+    int value, sum;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    value = rank + 1;
+    sum = value;
+
+    if (rank != 0) {
+        MPI_Recv(&sum, 1, MPI_INT, rank - 1, 0, MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+        sum += value;
+    }
+
+    if (rank != size - 1) {
+        MPI_Send(&sum, 1, MPI_INT, rank + 1, 0, MPI_COMM_WORLD);
+    }
+
+    printf("Rank %d: Prefix Sum = %d\n", rank, sum);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+				UsingMPI_Scan.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char** argv) {
+    int rank, value, result;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+
+    value = rank + 1;
+
+    MPI_Scan(&value, &result, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+    printf("Rank %d: Prefix Sum = %d\n", rank, result);
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+Fixed Gather.c
+
+void my_Gather(int* sendbuf, int sendcount, int* recvbuf, int root, MPI_Comm comm) {
+    int rank, size;
+    MPI_Comm_rank(comm, &rank);
+    MPI_Comm_size(comm, &size);
+
+    if (rank == root) {
+        for (int i = 0; i < size; i++) {
+            if (i == root) {
+                recvbuf[i] = sendbuf[0];
+            } else {
+                MPI_Recv(&recvbuf[i], 1, MPI_INT, i, 0, comm, MPI_STATUS_IGNORE);
+            }
+        }
+    } else {
+        MPI_Send(sendbuf, 1, MPI_INT, root, 0, comm);
+    }
+}
+
+Prefix Sum.c
+
+#include <mpi.h>
+#include <stdio.h>
+
+int main(int argc, char** argv) {
+    int rank, size;
+    int local[4], prefix[4];
+    int sum = 0, offset;
+
+    MPI_Init(&argc, &argv);
+    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+    MPI_Comm_size(MPI_COMM_WORLD, &size);
+
+    // Example data
+    for (int i = 0; i < 4; i++)
+        local[i] = rank * 4 + i + 1;
+
+    // Local prefix sum
+    prefix[0] = local[0];
+    for (int i = 1; i < 4; i++)
+        prefix[i] = prefix[i - 1] + local[i];
+
+    sum = prefix[3];
+
+    // Get offset using scan
+    MPI_Scan(&sum, &offset, 1, MPI_INT, MPI_SUM, MPI_COMM_WORLD);
+
+    offset -= sum;
+
+    for (int i = 0; i < 4; i++)
+        prefix[i] += offset;
+
+    printf("Rank %d: ", rank);
+    for (int i = 0; i < 4; i++)
+        printf("%d ", prefix[i]);
+    printf("\n");
+
+    MPI_Finalize();
+    return 0;
+}
+
+
+
+					readme.md file 
+
+# Lab 4: The Art of Communication – A Deep Dive into Point‑to‑Point and Collective MPI
+
+## Overview
+This lab focuses on understanding **MPI point‑to‑point** communication (`MPI_Send`, `MPI_Recv`) and **collective operations** (`MPI_Bcast`, `MPI_Reduce`, `MPI_Scatter`, `MPI_Gather`, `MPI_Allreduce`, `MPI_Scan`).  
+The goal was to learn **when to use collectives vs manual messaging**, implement some collectives manually (ring/linear approaches), and **measure performance** using `MPI_Wtime()`.
+
+## Files
+- `broadcast.c` – Compares `MPI_Bcast` performance against a manual broadcast implementation (root sends to each rank).
+- `reduce.c` – Uses `MPI_Reduce` to compute a global sum (verified with different process counts).
+- `scatter.c` – Measures `MPI_Scatter` time (distributing chunks of an array from root to all ranks).
+- `ring.c` – Implements a ring-based communication pattern (used for a custom allgather-style exchange).
+- `linear.c` – Implements a **linear pipeline prefix sum (scan)** using point‑to‑point communication.
+- `mpiscan.c` – Computes prefix sums using MPI’s built-in `MPI_Scan`.
+- `fixedgather.c` – Corrected implementation of a gather-style program (after fixing MPI type/include errors).
+- `distributedPrefixSum.c` – Computes a **distributed prefix sum over a distributed array**, keeping results partitioned across processes.
+
+## Compilation and Execution
+All programs were compiled using `mpicc` and executed using `mpirun`.
+
+### Compile (general)
+```bash
+mpicc <file>.c -o <output_name>
+```
+
+### Run (general)
+```bash
+mpirun -np <P> ./<output_name>
+```
+
+### Example commands used
+```bash
+mpicc broadcast.c -o broadcast
+mpirun -np 4 ./broadcast
+
+mpicc reduce.c -o reduce
+mpirun -np 4 ./reduce
+
+mpicc ring.c -o ring
+mpirun -np 4 ./ring
+
+mpicc linear.c -o linear
+mpirun -np 4 ./linear
+
+mpicc mpiscan.c -o mpiscan
+mpirun -np 4 ./mpiscan
+
+mpicc fixedgather.c -o fixedgather
+mpirun -np 4 ./fixedgather
+
+mpicc distributedPrefixSum.c -o distributedPrefixSum
+mpirun -np 4 ./distributedPrefixSum
+```
+
+## Example Output
+
+### `broadcast.c`
+Manual mistake encountered first (wrong output name):
+```bash
+mpicc broadcast.c -o broadcast.c
+gcc: fatal error: input file ‘broadcast.c’ is the same as output file
+compilation terminated.
+```
+
+Correct compilation + timing results:
+```bash
+mpicc broadcast.c -o broadcast
+mpirun -np 4 ./broadcast
+MPI_Bcast Time: 0.000079
+Manual Broadcast Time: 0.006065
+
+mpirun -np 2 ./broadcast
+MPI_Bcast Time: 0.000051
+Manual Broadcast Time: 0.000005
+
+mpirun -np 1 ./broadcast
+MPI_Bcast Time: 0.000001
+Manual Broadcast Time: 0.000000
+```
+
+### `reduce.c`
+```bash
+mpirun -np 1 ./reduce
+Final Reduced Sum = 1
+
+mpirun -np 2 ./reduce
+Final Reduced Sum = 3
+
+mpirun -np 4 ./reduce
+Final Reduced Sum = 10
+```
+
+### `scatter.c`
+```bash
+MPI_Scatter Time: 0.000036
+```
+
+### `ring.c`
+```bash
+mpirun -np 4 ./ring
+Rank 0: 1 1 1 4
+Rank 1: 1 2 1 4
+Rank 2: 1 2 3 4
+Rank 3: 1 1 3 4
+
+mpirun -np 2 ./ring
+Rank 0: 1
+```
+
+### `linear.c` (manual linear scan)
+```bash
+mpirun -np 1 ./linear
+Rank 0: Prefix Sum = 1
+
+mpirun -np 2 ./linear
+Rank 0: Prefix Sum = 1
+Rank 1: Prefix Sum = 3
+
+mpirun -np 4 ./linear
+Rank 0: Prefix Sum = 1
+Rank 1: Prefix Sum = 3
+Rank 2: Prefix Sum = 6
+Rank 3: Prefix Sum = 10
+```
+
+### `mpiscan.c` (MPI built-in scan)
+```bash
+mpirun -np 4 ./mpiscan
+Rank 1: Prefix Sum = 3
+Rank 0: Prefix Sum = 1
+Rank 3: Prefix Sum = 10
+Rank 2: Prefix Sum = 6
+
+mpirun -np 2 ./mpiscan
+Rank 0: Prefix Sum = 1
+Rank 1: Prefix Sum = 3
+
+mpirun -np 1 ./mpiscan
+Rank 0: Prefix Sum = 1
+```
+
+### `fixedgather.c`
+Initial compile error:
+```bash
+mpicc fixedgather.c -o fixedgather
+fixedgather.c:1:69: error: unknown type name ‘MPI_Comm’
+```
+
+After fixing:
+```bash
+mpirun -np 1 ./fixedgather
+Gathered data: 1
+
+mpirun -np 2 ./fixedgather
+Gathered data: 1 2
+
+mpirun -np 4 ./fixedgather
+Gathered data: 1 2 3 4
+```
+
+### `distributedPrefixSum.c`
+```bash
+mpirun -np 1 ./distributedPrefixSum
+Rank 0: 1 3 6 10
+
+mpirun -np 2 ./distributedPrefixSum
+Rank 0: 1 3 6 10
+Rank 1: 15 21 28 36
+
+mpirun -np 4 ./distributedPrefixSum
+Rank 3: 91 105 120 136
+Rank 0: 1 3 6 10
+Rank 1: 15 21 28 36
+```
+
+## Challenges Faced
+- **Compilation output name mistake:**  
+  I accidentally ran `mpicc broadcast.c -o broadcast.c`, which fails because the output filename cannot be the same as the input source file. I fixed it by compiling as `-o broadcast`.
+
+- **MPI type not recognized (`MPI_Comm` error):**  
+  In `fixedgather.c`, I initially got `unknown type name 'MPI_Comm'`. This happened due to missing/incorrect MPI includes or an incorrect function declaration. I resolved it by ensuring `#include <mpi.h>` was present and the function prototype used the correct MPI types.
+
+- **Output ordering differences across ranks:**  
+  For multi-process runs, printed output does not always appear in rank order (because processes run concurrently). This is expected behavior in MPI. When needed, ordering can be controlled using barriers or rank-ordered printing loops.
+
+- **Performance results vary with process count:**  
+  Timing results showed that collectives can be significantly faster at larger process counts (e.g., `MPI_Bcast` vs manual broadcast with 4 processes). For small process counts (like 2), the manual method may appear competitive due to very low overhead and measurement noise.
+
+
+main readme file 
+
+# Parallel and Distributed Computing Lab Portfolio
+
+## Student Information
+- Name: Huzaifa Arshad
+- Roll Number: 2023-CS-86
+- Course: Parallel and Distributed Computing
+- Instructor: Mr Waqas Ali
+
+## Lab Overview
+| Lab | Topic | Key Concepts |
+|-----|-------|--------------|
+| 1 | MPI – Parallel Counting | Distributed memory, SPMD, local computation, `MPI_Reduce`, timing, speedup/efficiency |
+| 2 | Point-to-Point Communication in MPI | `MPI_Send`, `MPI_Recv`, blocking communication, tags, wildcards (`MPI_ANY_SOURCE`, `MPI_ANY_TAG`), performance timing |
+| 3 | MPI Collective Communication | `MPI_Bcast`, `MPI_Reduce`, `MPI_Scatter`, `MPI_Gather`, `MPI_Scatterv`, `MPI_Gatherv`, matrix-vector multiplication, `MPI_ANY_SOURCE` |
+| 4 | Point‑to‑Point vs Collective (Deep Dive) | Comparing manual vs collective patterns, `MPI_Bcast` vs manual broadcast, `MPI_Reduce`, `MPI_Scatter`, ring communication (custom allgather idea), linear scan, `MPI_Scan`, custom gather, distributed prefix sum |
+
+## How to Use This Repository
+Each lab is stored in its own folder and contains its own README with:
+- file descriptions
+- compilation instructions (`mpicc`)
+- execution instructions (`mpirun -np <P>`)
+- example output
+- challenges faced
+
+### General Build/Run (MPI)
+```bash
+mpicc -O2 -o program program.c
+mpirun -np 4 ./program
+```
+
+## Requirements
+- MPI installation (OpenMPI or MPICH)
+- Linux environment (local machine or VM)
+- Compiler: `mpicc`
+- Runtime: `mpirun`
+
+## Notes
+- Output ordering may vary between runs because MPI processes execute concurrently.
+- Timing results can vary due to system load, MPI startup overhead, and small workloads.
+
