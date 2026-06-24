@@ -1,0 +1,134 @@
+===========================================================================
+ MANUAL TEST COMMANDS -- Parallel Data Preprocessing Pipeline
+ (verified run log captured 2026-06-22)
+===========================================================================
+ Run every command from the project root:
+   D:\Documents\Semester6\PDCL\PDC Project
+ Phases 1-2 run on Windows (PowerShell). Phase 3 runs in WSL (Ubuntu).
+ A "pass" = all versions produce the SAME SHA-256 hash + the SAME counters.
+ The verified hash for agnews_10k.txt (min_words=5) is:
+   51b11bc876c4b36eae5ce6bd32daaf1253e2564f1ebc2370f013aa7ff8f32920
+===========================================================================
+
+
+STEP 0 -- GET THE DATASET (once, Python)
+---------------------------------------------------------------------------
+pip install datasets
+python scripts\download_agnews.py
+# -> creates data\agnews\agnews_1k/10k/50k/full.txt
+
+
+---------------------------------------------------------------------------
+A) PHASES 1 & 2 -- WINDOWS (PowerShell)
+---------------------------------------------------------------------------
+.\build.ps1
+# Building SEQUENTIAL target...
+# OK  -> build\seq_pipeline.exe
+# Building OPENMP target...
+# OK  -> build\omp_pipeline.exe
+# Phase 3 (MPI/hybrid) builds under WSL via ./build.sh -- see docs/report.md
+
+build\seq_pipeline.exe data\agnews\agnews_10k.txt results\clean_10k.txt 5
+# ==================== SEQUENTIAL ====================
+# Total documents      : 10000
+# Removed (low quality): 0
+# Duplicates removed   : 55
+# Kept documents       : 9945
+# Total tokens         : 402830
+# (per-stage timings)  TOTAL : ~158 ms
+# Cleaned dataset written to: results\clean_10k.txt
+
+build\omp_pipeline.exe data\agnews\agnews_10k.txt results\clean_omp.txt 5 8
+# ==================== OPENMP (8 threads) ====================
+# Total/Removed/Dups/Kept/Tokens : 10000 / 0 / 55 / 9945 / 402830  (same counters)
+# TOTAL : ~43 ms   ->  ~3.6x faster than sequential on this run
+# Cleaned dataset written to: results\clean_omp.txt
+
+# compare: these two hashes must be EQUAL
+(Get-FileHash results\clean_10k.txt -Algorithm SHA256).Hash
+(Get-FileHash results\clean_omp.txt -Algorithm SHA256).Hash
+# 51B11BC876C4B36EAE5CE6BD32DAAF1253E2564F1EBC2370F013AA7FF8F32920
+# 51B11BC876C4B36EAE5CE6BD32DAAF1253E2564F1EBC2370F013AA7FF8F32920
+
+# automated checks
+.\scripts\verify_openmp.ps1
+#   ... OK on 1/2/4/8 threads for datasets 1k/10k/50k/full ...
+#   ALL CHECKS PASSED: OpenMP == Sequential on every dataset/thread count.
+
+.\scripts\benchmark.ps1
+#   SPEEDUP (S = T1/Tp):  10k peak 2.94x (12t), 50k 2.18x, full 2.85x
+#   -> results\benchmark_openmp.csv
+
+
+---------------------------------------------------------------------------
+B) PHASE 3 -- WSL (Ubuntu)
+---------------------------------------------------------------------------
+# one-time toolchain install
+sudo apt-get update
+sudo apt-get install -y build-essential openmpi-bin libopenmpi-dev
+
+cd "/mnt/d/Documents/Semester6/PDCL/PDC Project"
+./build.sh
+# OK -> build/seq_pipeline, build/omp_pipeline, build/mpi_pipeline, build/hybrid_pipeline
+# All targets built into build/
+
+./build/seq_pipeline                                   data/agnews/agnews_10k.txt results/out_seq.txt 5
+mpirun --allow-run-as-root -np 4 build/mpi_pipeline    data/agnews/agnews_10k.txt results/out_mpi.txt 5
+mpirun --allow-run-as-root -np 2 build/hybrid_pipeline data/agnews/agnews_10k.txt results/out_hyb.txt 5 4
+# all three print the SAME counters: 10000 / 0 / 55 / 9945 / 402830
+#   SEQUENTIAL TOTAL ~270 ms | MPI (4 procs) ~204 ms | HYBRID (2px4t) ~228 ms
+
+# compare: all three hashes must be IDENTICAL (and equal to the Windows hash above)
+sha256sum results/out_seq.txt results/out_mpi.txt results/out_hyb.txt
+# 51b11bc8...  results/out_seq.txt
+# 51b11bc8...  results/out_mpi.txt
+# 51b11bc8...  results/out_hyb.txt
+
+# automated checks
+./scripts/verify_mpi.sh        # 28 configs; ends with "ALL CHECKS PASSED"
+./scripts/benchmark_mpi.sh     # speedup tables -> results/benchmark_mpi.csv
+#   MPI peak ~1.6x (full, 8p); HYBRID peak ~1.8x (50k, 2px2t)
+#   lower than OpenMP ON ONE NODE by design (shared bus/disk + data copy +
+#   slow /mnt/d read); MPI's real payoff is multi-node.
+
+
+---------------------------------------------------------------------------
+C) EASIEST ONE-SHOT CHECK (WSL)
+---------------------------------------------------------------------------
+./scripts/verify_mpi.sh
+
+
+---------------------------------------------------------------------------
+STEP 4 -- FINE-TUNE DistilGPT-2 (Google Colab, GPU)
+---------------------------------------------------------------------------
+# 1. colab.research.google.com -> File -> Upload notebook
+#    -> docs/colab_finetune_distilgpt2.ipynb
+# 2. Runtime -> Change runtime type -> T4 GPU
+# 3. Run all cells; when prompted, upload a CLEANED file:
+#       results/clean_10k.txt   (fast)   or   results/clean_full.txt   (stronger)
+#    (NOT a raw data/agnews/agnews_*.txt file)
+# 4. Output: validation perplexity (~95.3 on clean_10k) + sample text;
+#    last cell saves/downloads the model.
+
+
+===========================================================================
+ WHAT "PASSING" LOOKS LIKE
+===========================================================================
+ * SHA-256 hashes match across seq / omp / mpi / hybrid (same cleaned output).
+ * Counters match. For agnews_10k.txt with min_words=5:
+       Total documents      : 10000
+       Removed (low quality): 0
+       Duplicates removed   : 55
+       Kept documents       : 9945
+       Total tokens         : 402830
+ * verify_openmp.ps1 / verify_mpi.sh end with "ALL CHECKS PASSED".
+
+ TIP: to see the quality filter actually drop documents, raise min_words
+ (e.g. use 30 instead of 5) -> "Removed" jumps above 0. The counters stay
+ identical across all four versions at any setting -- the correctness
+ guarantee of the project.
+
+ NOTE: results\clean_omp.txt and results\out_*.txt are regenerated by the
+ commands above; the repo only keeps the 4 canonical clean_{1k,10k,50k,full}.txt
+ corpora plus benchmark_openmp.csv / benchmark_mpi.csv.
+===========================================================================
