@@ -1,0 +1,118 @@
+===========================================================================
+  HOW TO RUN THIS PROJECT  —  simple step-by-step guide
+===========================================================================
+  First, open a terminal IN the project folder:
+      D:\Documents\Semester6\PDCL\PDC Project
+===========================================================================
+
+
+###########################################################################
+#  THE EASIEST WAY  —  just use the website (called "Foundry")
+###########################################################################
+
+  Every time you want to use it, run these 2 lines:
+
+      cd web\server
+      npm start
+
+  Then open this link in your browser:
+      http://localhost:3001
+
+  To stop it:  press  Ctrl + C  in that terminal.
+
+  -----------------------------------------------------------------------
+  (FIRST TIME ONLY — run these once to set it up, then never again:)
+
+      cd web\client
+      npm install
+      npm run build
+      cd ..\server
+      npm install
+  -----------------------------------------------------------------------
+
+  In the website you can:
+    - Run Console  : pick a dataset + a mode, click Run, see the results live
+    - Benchmarks   : speedup charts for all 4 versions
+    - About        : what the project is
+
+
+###########################################################################
+#  OPTION 2  —  run from the terminal (no website)
+###########################################################################
+
+  STEP 1 — Build once (Windows):
+      .\build.ps1
+
+  STEP 2 — Run a version:
+
+      # Sequential  (Phase 1)
+      build\seq_pipeline.exe data\agnews\agnews_10k.txt results\out.txt 5
+
+      # OpenMP, 8 threads  (Phase 2)
+      build\omp_pipeline.exe data\agnews\agnews_10k.txt results\out.txt 5 8
+
+  The two numbers at the end mean:   5 = minimum words ,  8 = threads.
+  You can swap agnews_10k.txt for agnews_1k.txt / agnews_50k.txt / agnews_full.txt.
+
+
+###########################################################################
+#  PHASE 3  (MPI + Hybrid)  —  runs in WSL (Ubuntu), not Windows
+###########################################################################
+
+  Open WSL, then:
+
+      cd "/mnt/d/Documents/Semester6/PDCL/PDC Project"
+      ./build.sh
+
+      # MPI with 4 processes
+      mpirun -np 4 build/mpi_pipeline    data/agnews/agnews_10k.txt results/out.txt 5
+
+      # Hybrid: 2 processes x 4 threads
+      mpirun -np 2 build/hybrid_pipeline data/agnews/agnews_10k.txt results/out.txt 5 4
+
+  (If mpirun says something about "root", add  --allow-run-as-root  right after mpirun.)
+
+
+###########################################################################
+#  CHECK EVERYTHING IS CORRECT  (optional)
+###########################################################################
+
+      .\scripts\verify_openmp.ps1      <- Windows: checks OpenMP == Sequential
+      ./scripts/verify_mpi.sh          <- WSL: checks MPI & Hybrid == Sequential
+
+  "ALL CHECKS PASSED" means every version produced the EXACT same cleaned file.
+
+
+###########################################################################
+#  WHAT A CORRECT RUN LOOKS LIKE  (agnews_10k.txt, min words = 5)
+###########################################################################
+
+      Total documents : 10000
+      Removed          : 0
+      Duplicates       : 55
+      Kept documents   : 9945
+      Total tokens     : 402830
+
+  All four versions print these SAME numbers — only the speed (time) differs.
+
+
+###########################################################################
+#  COMMON PROBLEM
+###########################################################################
+
+  "EADDRINUSE" / "port 3001 already in use" when starting the website:
+      Get-Process node | Stop-Process -Force
+  ...then run  npm start  again.
+
+
+###########################################################################
+#  FINE-TUNE THE AI MODEL  (optional, on Google Colab)
+###########################################################################
+
+  1. Go to  colab.research.google.com  ->  File ->  Upload notebook
+     ->  docs/colab_finetune_distilgpt2.ipynb
+  2. Runtime  ->  Change runtime type  ->  T4 GPU
+  3. Run all cells. When asked, upload  results/clean_10k.txt
+  4. It trains DistilGPT-2 and shows the result (perplexity ~ 95.3).
+
+===========================================================================
